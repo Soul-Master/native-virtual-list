@@ -1,0 +1,144 @@
+name: Update preview image
+
+on:
+  workflow_call:
+    inputs:
+      page_url:
+        description: "Optional page URL override"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-preview-image
+  cancel-in-progress: true
+
+jobs:
+  update-preview-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Cache Puppeteer Chrome
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-chrome-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
+          restore-keys: |
+            puppeteer-chrome-${{ runner.os }}-
+
+      - name: Install screenshot dependency
+        run: npm install --no-save --ignore-scripts puppeteer
+
+      - name: Install Puppeteer Chrome
+        shell: bash
+        run: |
+          CHROME_PATH="$(npx puppeteer browsers install chrome | awk '/chrome@/ { print $2; exit }')"
+          echo "PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          echo "Installed Chrome at: $CHROME_PATH"
+
+      - name: Resolve GitHub Pages URL
+        id: page
+        shell: bash
+        env:
+          INPUT_PAGE_URL: ${{ inputs.page_url }}
+        run: |
+          if [[ -n "$INPUT_PAGE_URL" ]]; then
+            PAGE_URL="$INPUT_PAGE_URL"
+          else
+            OWNER="${GITHUB_REPOSITORY_OWNER}"
+            REPO="${GITHUB_REPOSITORY#*/}"
+
+            if [[ "$REPO" == "${OWNER}.github.io" ]]; then
+              PAGE_URL="https://${OWNER}.github.io/"
+            else
+              PAGE_URL="https://${OWNER}.github.io/${REPO}/"
+            fi
+          fi
+
+          echo "PAGE_URL=$PAGE_URL" >> "$GITHUB_ENV"
+          echo "page_url=$PAGE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for deployed page to become available
+        shell: bash
+        run: |
+          echo "Checking: $PAGE_URL"
+
+          for i in {1..30}; do
+            STATUS="$(curl -L -s -o /dev/null -w '%{http_code}' "$PAGE_URL" || true)"
+
+            if [[ "$STATUS" =~ ^2|3 ]]; then
+              echo "Page is available with HTTP $STATUS"
+              exit 0
+            fi
+
+            echo "Page not ready yet. HTTP $STATUS"
+            sleep 5
+          done
+
+          echo "Page did not become available: $PAGE_URL"
+          exit 1
+
+      - name: Capture preview image
+        env:
+          PAGE_URL: ${{ env.PAGE_URL }}
+          OUTPUT_PATH: .preview/preview.png
+          VIEWPORT_WIDTH: 1280
+          VIEWPORT_HEIGHT: 800
+          NETWORK_IDLE_MS: 1000
+          CAPTURE_ELEMENT_SELECTOR: ".virtual-table"
+        run: node .github/scripts/capture-preview.mjs
+
+      - name: Publish preview image to preview-assets branch
+        shell: bash
+        run: |
+          cd .preview
+
+          git init
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git checkout -b preview-assets
+          git add preview.png
+          git commit -m "Update preview image"
+
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push --force origin preview-assets
+
+      - name: Refresh GitHub README image cache
+        shell: bash
+        env:
+          RAW_PREVIEW_URL: https://raw.githubusercontent.com/${{ github.repository }}/preview-assets/preview.png
+        run: |
+          set -euo pipefail
+
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
+          README_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/README.md"
+          URLS="$(
+            {
+              curl -sLk "$REPO_URL"
+              curl -sLk "$README_URL"
+            } | grep -Eo 'https://camo\.githubusercontent\.com[a-zA-Z0-9./?=_%:-]*' | sort -u || true
+          )"
+
+          if [[ -n "$URLS" ]]; then
+            while IFS= read -r url; do
+              [[ -z "$url" ]] && continue
+              echo "Purging Camo URL: $url"
+              curl -fsSL -X PURGE "$url" >/dev/null || true
+            done <<< "$URLS"
+          else
+            echo "No Camo URLs found for README images. GitHub may be rendering the raw image directly."
+          fi
+
+          echo "Refreshing raw preview URL: $RAW_PREVIEW_URL"
+          curl -fsSL -H "Cache-Control: no-cache" "${RAW_PREVIEW_URL}?refresh=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" -o /dev/null

@@ -1,0 +1,34 @@
+{
+  "name": "@esmodule/native-virtual-list",
+  "version": "0.1.0",
+  "description": "Native Web Component for fixed-height virtualized lists.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "module": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "FEATURES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && tsc -p tsconfig.build.json",
+    "build:ci": "vite build --config vite.config.ci.ts",
+    "preview": "vite preview",
+    "preview:ci": "vite preview --config vite.config.ci.ts"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vite": "~8.0.16"
+  }
+}

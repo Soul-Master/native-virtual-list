@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@esmodule/native-virtual-list</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@primer/css@22.0.0/dist/primer.css" />
+    <script type="module" src="/demo/main.ts"></script>
+  </head>
+  <body>
+    <h1 class="f0-light">@esmodule/native-virtual-list</h1>
+    <div class="demo-controls">
+      <label>
+        Rows
+        <select data-row-count>
+          <option value="100">100</option>
+          <option value="500">500</option>
+          <option value="1000" selected>1,000</option>
+          <option value="5000">5,000</option>
+          <option value="10000">10,000</option>
+          <option value="100000">100,000</option>
+        </select>
+      </label>
+      <span class="color-fg-muted" data-row-count-summary>local rows rendered with fixed-height virtualization.</span>
+    </div>
+
+    <table class="virtual-table">
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">User</th>
+          <th scope="col">Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="3">
+            <virtual-list style="height: 400px"></virtual-list>
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="debug-row" data-debug-panel>
+          <td>
+            <span class="debug-label">Last render</span>
+            <strong data-debug-render-time>0.00 ms</strong>
+          </td>
+          <td>
+            <span class="debug-label">Rerenders</span>
+            <strong data-debug-render-count>0</strong>
+          </td>
+          <td>
+            <span class="debug-label">Rendered range</span>
+            <div class="range-meter" aria-label="Rendered buffer and visible viewport range">
+              <div class="range-meter-buffer" data-debug-buffer></div>
+              <div class="range-meter-visible" data-debug-visible></div>
+            </div>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <label class="debug-toggle">
+      <input type="checkbox" data-debug-toggle checked />
+      Enable debug mode
+    </label>
+  </body>
+</html>
